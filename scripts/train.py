@@ -61,6 +61,8 @@ parser.add_argument("--recurrence", type=int, default=1,
                     help="number of timesteps gradient is backpropagated (default: 1)\nIf > 1, a LSTM is added to the model to have memory")
 parser.add_argument("--text", action="store_true", default=False,
                     help="add a GRU to the model to handle text input")
+parser.add_argument("--prev_action", action="store_true", default=False,
+                    help="add previous action as input to policy and value")
 args = parser.parse_args()
 args.mem = args.recurrence > 1
 
@@ -113,7 +115,7 @@ try:
     acmodel = utils.load_model(model_dir)
     logger.info("Model successfully loaded\n")
 except OSError:
-    acmodel = ACModel(obs_space, envs[0].action_space, args.mem, args.text)
+    acmodel = ACModel(obs_space, envs[0].action_space, args.mem, args.text, args.prev_action)
     logger.info("Model successfully created\n")
 logger.info("{}\n".format(acmodel))
 

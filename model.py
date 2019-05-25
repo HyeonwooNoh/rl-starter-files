@@ -15,12 +15,15 @@ def initialize_parameters(m):
             m.bias.data.fill_(0)
 
 class ACModel(nn.Module, torch_ac.RecurrentACModel):
-    def __init__(self, obs_space, action_space, use_memory=False, use_text=False):
+    def __init__(self, obs_space, action_space, use_memory=False, use_text=False,
+                 use_prev_action=False):
         super().__init__()
 
         # Decide which components are enabled
         self.use_text = use_text
         self.use_memory = use_memory
+        self.use_prev_action = use_prev_action
+        self.action_space = action_space
 
         # Define image embedding
         self.image_conv = nn.Sequential(
@@ -36,6 +39,9 @@ class ACModel(nn.Module, torch_ac.RecurrentACModel):
         m = obs_space["image"][1]
         self.image_embedding_size = ((n-1)//2-2)*((m-1)//2-2)*64
 
+        if self.use_prev_action:
+            self.image_embedding_size += self.action_space.n
+
         # Define memory
         if self.use_memory:
             self.memory_rnn = nn.LSTMCell(self.image_embedding_size, self.semi_memory_size)
@@ -46,6 +52,10 @@ class ACModel(nn.Module, torch_ac.RecurrentACModel):
             self.word_embedding = nn.Embedding(obs_space["text"], self.word_embedding_size)
             self.text_embedding_size = 128
             self.text_rnn = nn.GRU(self.word_embedding_size, self.text_embedding_size, batch_first=True)
+
+        # Define one hot for previous action
+        if self.use_prev_action:
+            self.onehot_prev_action = None
 
         # Resize image embedding
         self.embedding_size = self.semi_memory_size
@@ -80,10 +90,21 @@ class ACModel(nn.Module, torch_ac.RecurrentACModel):
     def semi_memory_size(self):
         return self.image_embedding_size
 
-    def forward(self, obs, memory):
+    def forward(self, obs, prev_action, memory):
         x = torch.transpose(torch.transpose(obs.image, 1, 3), 2, 3)
         x = self.image_conv(x)
         x = x.reshape(x.shape[0], -1)
+
+        if self.use_prev_action:
+            if self.onehot_prev_action is None or \
+                    prev_action.size(0) != self.onehot_prev_action.size(0):
+                self.onehot_prev_action = torch.zeros(
+                    [prev_action.size(0), self.action_space.n],
+                    device=prev_action.device)
+            self.onehot_prev_action.zero_()
+            self.onehot_prev_action.scatter_(
+                1, prev_action.unsqueeze(1).long(), 1)
+            x = torch.cat([x, self.onehot_prev_action], dim=1)
 
         if self.use_memory:
             hidden = (memory[:, :self.semi_memory_size], memory[:, self.semi_memory_size:])
