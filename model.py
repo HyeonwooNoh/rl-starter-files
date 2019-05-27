@@ -39,12 +39,9 @@ class ACModel(nn.Module, torch_ac.RecurrentACModel):
         m = obs_space["image"][1]
         self.image_embedding_size = ((n-1)//2-2)*((m-1)//2-2)*64
 
-        if self.use_prev_action:
-            self.image_embedding_size += self.action_space.n
-
         # Define memory
         if self.use_memory:
-            self.memory_rnn = nn.LSTMCell(self.image_embedding_size, self.semi_memory_size)
+            self.memory_rnn = nn.LSTMCell(self.context_size, self.semi_memory_size)
 
         # Define text embedding
         if self.use_text:
@@ -88,7 +85,14 @@ class ACModel(nn.Module, torch_ac.RecurrentACModel):
 
     @property
     def semi_memory_size(self):
-        return self.image_embedding_size
+        return self.context_size
+
+    @property
+    def context_size(self):
+        context_size = self.image_embedding_size
+        if self.use_prev_action:
+            context_size += self.action_space.n
+        return context_size
 
     def forward(self, obs, prev_action, memory):
         x = torch.transpose(torch.transpose(obs.image, 1, 3), 2, 3)

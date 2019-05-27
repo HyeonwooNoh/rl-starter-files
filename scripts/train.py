@@ -11,6 +11,7 @@ import sys
 
 import utils
 from model import ACModel
+from model_aux import ACAuxModel
 
 # Parse arguments
 
@@ -21,6 +22,8 @@ parser.add_argument("--env", required=True,
                     help="name of the environment to train on (REQUIRED)")
 parser.add_argument("--model", default=None,
                     help="name of the model (default: {ENV}_{ALGO}_{TIME})")
+parser.add_argument("--model_type", default="standard",
+                    help="model type to use: standard | aux")
 parser.add_argument("--seed", type=int, default=1,
                     help="random seed (default: 1)")
 parser.add_argument("--procs", type=int, default=16,
@@ -45,6 +48,8 @@ parser.add_argument("--entropy-coef", type=float, default=0.01,
                     help="entropy term coefficient (default: 0.01)")
 parser.add_argument("--value-loss-coef", type=float, default=0.5,
                     help="value loss term coefficient (default: 0.5)")
+parser.add_argument("--aux-loss-coef", type=float, default=0.5,
+                    help="aux loss term coefficient (default: 0.5)")
 parser.add_argument("--max-grad-norm", type=float, default=0.5,
                     help="maximum norm of gradient (default: 0.5)")
 parser.add_argument("--optim-eps", type=float, default=1e-5,
@@ -63,6 +68,8 @@ parser.add_argument("--text", action="store_true", default=False,
                     help="add a GRU to the model to handle text input")
 parser.add_argument("--prev_action", action="store_true", default=False,
                     help="add previous action as input to policy and value")
+parser.add_argument("--aux_context", action="store_true", default=False,
+                    help="add aux context as input to policy and value")
 args = parser.parse_args()
 args.mem = args.recurrence > 1
 
@@ -115,7 +122,13 @@ try:
     acmodel = utils.load_model(model_dir)
     logger.info("Model successfully loaded\n")
 except OSError:
-    acmodel = ACModel(obs_space, envs[0].action_space, args.mem, args.text, args.prev_action)
+    if args.model_type == 'standard':
+        acmodel = ACModel(obs_space, envs[0].action_space,
+                          args.mem, args.text, args.prev_action)
+    elif args.model_type == 'aux':
+        acmodel = ACAuxModel(obs_space, envs[0].action_space,
+                             args.mem, args.text, args.prev_action,
+                             args.aux_context)
     logger.info("Model successfully created\n")
 logger.info("{}\n".format(acmodel))
 
@@ -133,6 +146,10 @@ elif args.algo == "ppo":
     algo = torch_ac.PPOAlgo(envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
                             args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
                             args.optim_eps, args.clip_eps, args.epochs, args.batch_size, preprocess_obss)
+elif args.algo == "ppo_aux":
+    algo = torch_ac.PPOAuxAlgo(envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
+                               args.entropy_coef, args.value_loss_coef, args.aux_loss_coef, args.max_grad_norm, args.recurrence,
+                               args.optim_eps, args.clip_eps, args.epochs, args.batch_size, preprocess_obss)
 else:
     raise ValueError("Incorrect algorithm name: {}".format(args.algo))
 
