@@ -70,6 +70,10 @@ parser.add_argument("--prev_action", action="store_true", default=False,
                     help="add previous action as input to policy and value")
 parser.add_argument("--aux_context", action="store_true", default=False,
                     help="add aux context as input to policy and value")
+parser.add_argument("--aux_reward", action="store_true", default=False,
+                    help="add aux reward")
+parser.add_argument("--aux_reward_coef", type=float, default=0.1,
+                    help="aux reward coef")
 args = parser.parse_args()
 args.mem = args.recurrence > 1
 
@@ -149,7 +153,8 @@ elif args.algo == "ppo":
 elif args.algo == "ppo_aux":
     algo = torch_ac.PPOAuxAlgo(envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
                                args.entropy_coef, args.value_loss_coef, args.aux_loss_coef, args.max_grad_norm, args.recurrence,
-                               args.optim_eps, args.clip_eps, args.epochs, args.batch_size, preprocess_obss)
+                               args.optim_eps, args.clip_eps, args.epochs, args.batch_size, preprocess_obss,
+                               use_aux_reward=args.aux_reward, aux_reward_coef=args.aux_reward_coef)
 else:
     raise ValueError("Incorrect algorithm name: {}".format(args.algo))
 
@@ -195,6 +200,10 @@ while num_frames < args.frames:
 
         header += ["return_" + key for key in return_per_episode.keys()]
         data += return_per_episode.values()
+
+        if 'aux' in args.algo:
+            header += ["aux_loss", "sample_entropy", "prev_aux_logprob"]
+            data += [logs["aux_loss"], logs["sample_entropy"], logs["prev_aux_logprob"]]
 
         if status["num_frames"] == 0:
             csv_writer.writerow(header)
