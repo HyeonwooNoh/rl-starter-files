@@ -50,6 +50,7 @@ if args.gif:
    frames = []
 
 done = True
+prev_action = 0
 
 while True:
     if done:
@@ -60,9 +61,13 @@ while True:
     if args.gif:
         frames.append(numpy.moveaxis(env.render("rgb_array"), 2, 0))
 
-    action = agent.get_action(obs)
+    action = agent.get_action(obs, prev_action)
     obs, reward, done, _ = env.step(action)
     agent.analyze_feedback(reward, done)
+    if done:
+        prev_action = 0
+    else:
+        prev_action = action
 
     if renderer.window is None:
         if args.gif:

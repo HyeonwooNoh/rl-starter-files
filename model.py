@@ -54,8 +54,7 @@ class ACModel(nn.Module, torch_ac.RecurrentACModel):
             self.text_rnn = nn.GRU(self.word_embedding_size, self.text_embedding_size, batch_first=True)
 
         # Define one hot for previous action
-        if self.use_prev_action:
-            self.onehot_prev_action = None
+        self.onehot_prev_action = None
 
         # Resize image embedding
         self.embedding_size = self.semi_memory_size
@@ -139,3 +138,13 @@ class ACModel(nn.Module, torch_ac.RecurrentACModel):
     def _get_embed_text(self, text):
         _, hidden = self.text_rnn(self.word_embedding(text))
         return hidden[-1]
+
+    def cuda(self, device=None):
+        if self.onehot_prev_action is not None:
+            self.onehot_prev_action = self.onehot_prev_action.cuda(device=device)
+        return super().cuda(device=device)
+
+    def cpu(self):
+        if self.onehot_prev_action is not None:
+            self.onehot_prev_action = self.onehot_prev_action.cpu()
+        return super().cpu()
