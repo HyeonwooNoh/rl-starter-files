@@ -8,12 +8,13 @@ from model import ACModel
 
 class ACAuxModel(ACModel):
     def __init__(self, obs_space, action_space, use_memory=False, use_text=False,
-                 use_prev_action=False, use_aux_context=False):
+                 use_prev_action=False, use_manual_memory_size=False,
+                 memory_size=64, use_aux_context=False):
         self.use_aux_context = use_aux_context
         self.aux_hidden_size = 64
 
         super().__init__(obs_space, action_space, use_memory, use_text,
-                         use_prev_action)
+                         use_prev_action, use_manual_memory_size, memory_size)
 
         if isinstance(action_space, gym.spaces.Discrete):
             self.aux_embed = nn.Sequential(
@@ -46,7 +47,7 @@ class ACAuxModel(ACModel):
         x = x.reshape(x.shape[0], -1)
 
         if self.use_memory:
-            hidden = memory[:, :self.semi_memory_size]
+            hidden = memory[:, :self.memory_rnn.hidden_size]
             aux_x = torch.cat([x, hidden], dim=1)
         else:
             aux_x = x
@@ -69,7 +70,7 @@ class ACAuxModel(ACModel):
             x = torch.cat([x, aux_hidden.detach()], dim=1)
 
         if self.use_memory:
-            hidden = (memory[:, :self.semi_memory_size], memory[:, self.semi_memory_size:])
+            hidden = (memory[:, :self.memory_rnn.hidden_size], memory[:, self.memory_rnn.hidden_size:])
             hidden = self.memory_rnn(x, hidden)
             embedding = hidden[0]
             memory = torch.cat(hidden, dim=1)

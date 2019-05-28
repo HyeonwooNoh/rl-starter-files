@@ -13,18 +13,21 @@ class Agent:
         self.argmax = argmax
         self.num_envs = num_envs
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
         if self.acmodel.recurrent:
-            self.memories = torch.zeros(self.num_envs, self.acmodel.memory_size)
+            self.memories = torch.zeros(
+                self.num_envs, self.acmodel.memory_rnn.hidden_size * 2)
 
-    def get_actions(self, obss):
+    def get_actions(self, obss, prev_actions):
         preprocessed_obss = self.preprocess_obss(obss)
 
         with torch.no_grad():
             if self.acmodel.recurrent:
-                dist, _, self.memories = self.acmodel(preprocessed_obss, self.memories)
+                model_out = self.acmodel(
+                    preprocessed_obss, prev_actions, self.memories)
+                dist, _, self.memories = model_out[:3]
             else:
-                dist, _ = self.acmodel(preprocessed_obss)
+                model_out = self.acmodel(preprocessed_obss, prev_actions)
+                dist, _ = model_out[:2]
 
         if self.argmax:
             actions = dist.probs.max(1, keepdim=True)[1]

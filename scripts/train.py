@@ -72,6 +72,10 @@ parser.add_argument("--aux_context", action="store_true", default=False,
                     help="add aux context as input to policy and value")
 parser.add_argument("--aux_reward", action="store_true", default=False,
                     help="add aux reward")
+parser.add_argument("--manual_memory", action="store_true", default=False,
+                    help="add manual memory size setting option")
+parser.add_argument("--manual_memory_size", type=int, default=64,
+                    help="semi memory size when is set manually")
 parser.add_argument("--aux_reward_coef", type=float, default=0.1,
                     help="aux reward coef")
 args = parser.parse_args()
@@ -128,10 +132,12 @@ try:
 except OSError:
     if args.model_type == 'standard':
         acmodel = ACModel(obs_space, envs[0].action_space,
-                          args.mem, args.text, args.prev_action)
+                          args.mem, args.text, args.prev_action,
+                          args.manual_memory, args.manual_memory_size)
     elif args.model_type == 'aux':
         acmodel = ACAuxModel(obs_space, envs[0].action_space,
                              args.mem, args.text, args.prev_action,
+                             args.manual_memory, args.manual_memory_size,
                              args.aux_context)
     logger.info("Model successfully created\n")
 logger.info("{}\n".format(acmodel))

@@ -16,13 +16,16 @@ def initialize_parameters(m):
 
 class ACModel(nn.Module, torch_ac.RecurrentACModel):
     def __init__(self, obs_space, action_space, use_memory=False, use_text=False,
-                 use_prev_action=False):
+                 use_prev_action=False, use_manual_memory_size=False,
+                 memory_size=64):
         super().__init__()
 
         # Decide which components are enabled
         self.use_text = use_text
         self.use_memory = use_memory
         self.use_prev_action = use_prev_action
+        self.use_manual_memory_size = use_manual_memory_size
+        self._semi_memory_size = memory_size
         self.action_space = action_space
 
         # Define image embedding
@@ -85,7 +88,10 @@ class ACModel(nn.Module, torch_ac.RecurrentACModel):
 
     @property
     def semi_memory_size(self):
-        return self.context_size
+        if self.use_manual_memory_size:
+            return self._semi_memory_size
+        else:
+            return self.context_size
 
     @property
     def context_size(self):
@@ -111,7 +117,7 @@ class ACModel(nn.Module, torch_ac.RecurrentACModel):
             x = torch.cat([x, self.onehot_prev_action], dim=1)
 
         if self.use_memory:
-            hidden = (memory[:, :self.semi_memory_size], memory[:, self.semi_memory_size:])
+            hidden = (memory[:, :self.memory_rnn.hidden_size], memory[:, self.memory_rnn.hidden_size:])
             hidden = self.memory_rnn(x, hidden)
             embedding = hidden[0]
             memory = torch.cat(hidden, dim=1)
