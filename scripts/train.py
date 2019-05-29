@@ -12,18 +12,19 @@ import sys
 import utils
 from model import ACModel
 from model_aux import ACAuxModel
+from model_aux_empower import ACAuxEmpowerModel
 
 # Parse arguments
 
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument("--algo", required=True,
-                    help="algorithm to use: a2c | ppo (REQUIRED)")
+                    help="algorithm to use: a2c | ppo | ppo_aux | ppo_aux_empower (REQUIRED)")
 parser.add_argument("--env", required=True,
                     help="name of the environment to train on (REQUIRED)")
 parser.add_argument("--model", default=None,
                     help="name of the model (default: {ENV}_{ALGO}_{TIME})")
 parser.add_argument("--model_type", default="standard",
-                    help="model type to use: standard | aux")
+                    help="model type to use: standard | aux | aux_empower")
 parser.add_argument("--seed", type=int, default=1,
                     help="random seed (default: 1)")
 parser.add_argument("--procs", type=int, default=16,
@@ -50,6 +51,10 @@ parser.add_argument("--value-loss-coef", type=float, default=0.5,
                     help="value loss term coefficient (default: 0.5)")
 parser.add_argument("--aux-loss-coef", type=float, default=0.5,
                     help="aux loss term coefficient (default: 0.5)")
+parser.add_argument("--empower-value-loss-coef", type=float, default=0.5,
+                    help="empower value loss term coefficient (default: 0.5)")
+parser.add_argument("--empower-beta-coef", type=float, default=1.0,
+                    help="empower beta coefficient (balance between entropy and action posterior) (default: 1.0)")
 parser.add_argument("--max-grad-norm", type=float, default=0.5,
                     help="maximum norm of gradient (default: 0.5)")
 parser.add_argument("--optim-eps", type=float, default=1e-5,
@@ -72,6 +77,8 @@ parser.add_argument("--aux_context", action="store_true", default=False,
                     help="add aux context as input to policy and value")
 parser.add_argument("--aux_reward", action="store_true", default=False,
                     help="add aux reward")
+parser.add_argument("--shaping_aux_reward", action="store_true", default=False,
+                    help="use aux reward as a shaping function")
 parser.add_argument("--manual_memory", action="store_true", default=False,
                     help="add manual memory size setting option")
 parser.add_argument("--manual_memory_size", type=int, default=64,
@@ -139,6 +146,11 @@ except OSError:
                              args.mem, args.text, args.prev_action,
                              args.manual_memory, args.manual_memory_size,
                              args.aux_context)
+    elif args.model_type == 'aux_empower':
+        acmodel = ACAuxEmpowerModel(obs_space, envs[0].action_space,
+                                    args.mem, args.text, args.prev_action,
+                                    args.manual_memory, args.manual_memory_size,
+                                    args.aux_context)
     logger.info("Model successfully created\n")
 logger.info("{}\n".format(acmodel))
 
@@ -160,7 +172,16 @@ elif args.algo == "ppo_aux":
     algo = torch_ac.PPOAuxAlgo(envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
                                args.entropy_coef, args.value_loss_coef, args.aux_loss_coef, args.max_grad_norm, args.recurrence,
                                args.optim_eps, args.clip_eps, args.epochs, args.batch_size, preprocess_obss,
-                               use_aux_reward=args.aux_reward, aux_reward_coef=args.aux_reward_coef)
+                               use_aux_reward=args.aux_reward, aux_reward_coef=args.aux_reward_coef,
+                               shaping_aux_reward=args.shaping_aux_reward)
+elif args.algo == "ppo_aux_empower":
+    algo = torch_ac.PPOAuxEmpowerAlgo(envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
+                                      args.entropy_coef, args.value_loss_coef, args.aux_loss_coef, args.max_grad_norm, args.recurrence,
+                                      args.optim_eps, args.clip_eps, args.epochs, args.batch_size, preprocess_obss,
+                                      use_aux_reward=args.aux_reward, aux_reward_coef=args.aux_reward_coef,
+                                      shaping_aux_reward=args.shaping_aux_reward,
+                                      empower_beta_coef=args.empower_beta_coef,
+                                      empower_value_loss_coef=args.empower_value_loss_coef)
 else:
     raise ValueError("Incorrect algorithm name: {}".format(args.algo))
 
@@ -210,6 +231,9 @@ while num_frames < args.frames:
         if 'aux' in args.algo:
             header += ["aux_loss", "sample_entropy", "prev_aux_logprob"]
             data += [logs["aux_loss"], logs["sample_entropy"], logs["prev_aux_logprob"]]
+        if 'aux_empower' in args.algo:
+            header += ["empower_value", "empower_value_loss"]
+            data += [logs["empower_value"], logs["empower_value_loss"]]
 
         if status["num_frames"] == 0:
             csv_writer.writerow(header)
